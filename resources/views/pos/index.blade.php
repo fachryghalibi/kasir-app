@@ -312,24 +312,25 @@
             lastTransactionId = null; // Reset transaction ID
         });
 
-        document.getElementById('print-receipt').addEventListener('click', function() {
-            if (lastTransactionId) {
-                // Buka halaman print di tab baru menggunakan route yang sama seperti di history
-                const receiptUrl = '{{ route("pos.receipt", ":id") }}'.replace(':id', lastTransactionId);
-                const printWindow = window.open(receiptUrl, '_blank', 'width=400,height=600');
+       document.getElementById('print-receipt').addEventListener('click', function() {
+
+    
+    if (lastTransactionId) {
+        const receiptUrl = `/pos/receipt/${lastTransactionId}`;
+        console.log('Receipt URL:', receiptUrl);
+        
                 
-                // PERBAIKAN: Tambahkan fallback jika window.open gagal
-                if (!printWindow) {
-                    alert('Pop-up blocker mungkin menghalangi pembukaan struk. Silakan izinkan pop-up untuk situs ini.');
-                    // Alternatif: buka di tab yang sama
-                    window.location.href = receiptUrl;
-                }
-            } else {
-                alert('Transaction ID tidak ditemukan!');
-                console.error('lastTransactionId is null or undefined');
-            }
-        });
-    });
+        const printWindow = window.open(receiptUrl, '_blank', 'width=400,height=600');
+        
+        if (!printWindow) {
+            alert('Pop-up blocker mungkin menghalangi pembukaan struk. Silakan izinkan pop-up untuk situs ini.');
+        }
+    } else {
+        alert('Transaction ID tidak ditemukan!');
+        console.error('lastTransactionId is null or undefined');
+    }
+});
+    }); 
 
     // Add to cart
     function addToCart(productId, productName, productPrice, productStock) {
@@ -522,17 +523,19 @@
             const result = await response.json();
 
             if (result.success) {
-                // PERBAIKAN: Simpan transaction ID dari response
-                lastTransactionId = result.data.id;
-                
-                console.log('Transaction ID:', lastTransactionId); // Debug log
-                
-                // Show success modal
-                document.getElementById('modal-invoice').textContent = result.data.invoice_number;
-                document.getElementById('modal-total').textContent = 'Rp ' + formatNumber(result.data.total);
-                document.getElementById('modal-change').textContent = 'Rp ' + formatNumber(result.data.change);
-                successModal.classList.remove('hidden');
-            } else {
+
+    
+
+    
+    lastTransactionId = result.data.transaction.uuid;
+    
+    
+    // Show success modal
+    document.getElementById('modal-invoice').textContent = result.data.invoice_number;
+    document.getElementById('modal-total').textContent = 'Rp ' + formatNumber(result.data.total);
+    document.getElementById('modal-change').textContent = 'Rp ' + formatNumber(result.data.change);
+    successModal.classList.remove('hidden');
+} else {
                 alert('Error: ' + result.message);
             }
         } catch (error) {

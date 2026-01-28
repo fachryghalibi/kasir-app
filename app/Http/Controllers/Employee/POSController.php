@@ -11,21 +11,21 @@ class POSController extends Controller
     /**
      * Display POS interface
      */
-    public function index()
-    {
-        // Get all active products with category
-        $products = Product::with('category')
-            ->active()
-            ->orderBy('name')
-            ->get();
-        
-        // Get categories for filter
-        $categories = \App\Models\Category::active()
-            ->orderBy('name')
-            ->get();
-        
-        return view('pos.index', compact('products', 'categories'));
-    }
+        public function index()
+        {
+            // Get all active products with category & tier prices
+            $products = Product::with(['category', 'tierPrices'])
+                ->active()
+                ->orderBy('name')
+                ->get();
+            
+            // Get categories for filter
+            $categories = \App\Models\Category::active()
+                ->orderBy('name')
+                ->get();
+            
+            return view('pos.index', compact('products', 'categories'));
+        }
 
     /**
      * Process checkout
@@ -52,15 +52,18 @@ class POSController extends Controller
             $transaction = $transactionService->createTransaction($validated);
 
             return response()->json([
-    'success' => true,
-    'message' => 'Transaksi berhasil!',
-    'data' => [
-        'id' => $transaction->id,  // ← Pindahkan ke sini
-        'invoice_number' => $transaction->invoice_number,
-        'total' => $transaction->total,
-        'change' => $transaction->change_amount,
-    ],
-]);
+                'success' => true,
+                'message' => 'Transaksi berhasil!',
+                'data' => [
+                    'transaction' => [
+                        'id' => $transaction->id,
+                        'uuid' => $transaction->uuid,
+                    ],
+                    'invoice_number' => $transaction->invoice_number,
+                    'total' => $transaction->total,
+                    'change' => $transaction->change_amount,
+                ],
+            ]);
 
         } catch (\Exception $e) {
             return response()->json([

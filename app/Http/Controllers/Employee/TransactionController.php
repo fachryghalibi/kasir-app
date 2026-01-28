@@ -38,7 +38,6 @@ class TransactionController extends Controller
      */
     public function show(Transaction $transaction)
     {
-        // Check authorization
         if ($transaction->user_id !== auth()->id()) {
             abort(403, 'Anda tidak memiliki akses ke transaksi ini.');
         }
@@ -50,18 +49,15 @@ class TransactionController extends Controller
 
     /**
      * Print receipt
-     * PERBAIKAN: Menggunakan $id integer bukan model binding
      */
-    public function receipt($id)
+    public function receipt(Transaction $transaction)
     {
-        // Find transaction manually
-        $transaction = Transaction::with(['items.product', 'user'])
-            ->findOrFail($id);
-        
-        // Check authorization - hanya kasir yang buat transaksi yang bisa print
+        // Check authorization
         if ($transaction->user_id !== auth()->id()) {
             abort(403, 'Anda tidak memiliki akses ke transaksi ini.');
         }
+
+        $transaction->load('items.product', 'user');
 
         return view('pos.receipt', compact('transaction'));
     }

@@ -2,10 +2,6 @@
 
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\DashboardController;
-use App\Http\Controllers\Employee\POSController;
-use App\Http\Controllers\Employee\TransactionController;
-use App\Http\Controllers\Boss\ProductController;
-use App\Http\Controllers\Boss\CategoryController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -36,86 +32,83 @@ Route::middleware('auth')->group(function () {
     
     /*
     |--------------------------------------------------------------------------
-    | Employee Routes (Kasir) - POS SYSTEM
+    | Employee Routes (Kasir) - POS SYSTEM ✅ AKTIF
     |--------------------------------------------------------------------------
     */
     Route::prefix('pos')->name('pos.')->group(function () {
         // Halaman POS Kasir
-        Route::get('/', [POSController::class, 'index'])
+        Route::get('/', [\App\Http\Controllers\Employee\POSController::class, 'index'])
             ->name('index');
         
         // Proses Checkout
-        Route::post('/checkout', [POSController::class, 'checkout'])
+        Route::post('/checkout', [\App\Http\Controllers\Employee\POSController::class, 'checkout'])
             ->name('checkout');
         
         // Riwayat Transaksi
-        Route::get('/history', [TransactionController::class, 'index'])
+        Route::get('/history', [\App\Http\Controllers\Employee\TransactionController::class, 'index'])
             ->name('history');
         
         // Detail Transaksi
-        Route::get('/history/{transaction}', [TransactionController::class, 'show'])
+        Route::get('/history/{transaction}', [\App\Http\Controllers\Employee\TransactionController::class, 'show'])
             ->name('history.show');
 
-        // Print Receipt (PERBAIKAN: Menggunakan {id} bukan {transaction})
-        Route::get('/receipt/{id}', [TransactionController::class, 'receipt'])
-            ->name('receipt');
+        // Print Receipt
+        Route::get('/receipt/{transaction}', [\App\Http\Controllers\Employee\TransactionController::class, 'receipt'])
+        ->name('receipt');
     });
     
     /*
     |--------------------------------------------------------------------------
-    | Boss Only Routes - Management & Reports
+    | Boss Only Routes - BELUM DIBUAT (Coming Soon)
     |--------------------------------------------------------------------------
     */
+    
     Route::middleware('boss')->prefix('boss')->name('boss.')->group(function () {
-        
-        // Product Management
-        Route::resource('products', ProductController::class);
-        
-        // Category Management
-        Route::resource('categories', CategoryController::class);
-        
-        /*
-        |--------------------------------------------------------------------------
-        | COMING SOON - Uncomment when ready
-        |--------------------------------------------------------------------------
-        */
-        
         // User Management
         // Route::resource('users', \App\Http\Controllers\Boss\UserController::class);
         
+        // Product Management
+        Route::resource('products', \App\Http\Controllers\Boss\ProductController::class);
+        
+        // Category Management
+        Route::resource('categories', \App\Http\Controllers\Boss\CategoryController::class);
+
+            // Vendor Management
+        Route::resource('vendors', \App\Http\Controllers\Boss\VendorController::class);
+        
+        // Vendor Comparison
+        Route::get('vendor-comparison', [\App\Http\Controllers\Boss\VendorComparisonController::class, 'index'])
+            ->name('vendor-comparison.index');
+        Route::post('vendor-comparison', [\App\Http\Controllers\Boss\VendorComparisonController::class, 'compare'])
+            ->name('vendor-comparison.compare');
+        
+        // Product Tier Prices (akan dibuat di step selanjutnya)
+        Route::get('products/{product}/tier-prices', [\App\Http\Controllers\Boss\ProductTierPriceController::class, 'index'])
+            ->name('products.tier-prices.index');
+        Route::post('products/{product}/tier-prices', [\App\Http\Controllers\Boss\ProductTierPriceController::class, 'store'])
+            ->name('products.tier-prices.store');
+        Route::delete('tier-prices/{tierPrice}', [\App\Http\Controllers\Boss\ProductTierPriceController::class, 'destroy'])
+            ->name('tier-prices.destroy');
+        
+        // Product Vendor Prices (akan dibuat di step selanjutnya)
+        Route::get('products/{product}/vendor-prices', [\App\Http\Controllers\Boss\ProductVendorPriceController::class, 'index'])
+            ->name('products.vendor-prices.index');
+        Route::post('products/{product}/vendor-prices', [\App\Http\Controllers\Boss\ProductVendorPriceController::class, 'store'])
+            ->name('products.vendor-prices.store');
+        
         // Reports
-        // Route::prefix('reports')->name('reports.')->group(function () {
-        //     Route::get('/sales', [\App\Http\Controllers\Boss\ReportController::class, 'sales'])
-        //         ->name('sales');
-        //     Route::get('/inventory', [\App\Http\Controllers\Boss\ReportController::class, 'inventory'])
-        //         ->name('inventory');
-        //     Route::get('/transactions', [\App\Http\Controllers\Boss\ReportController::class, 'transactions'])
-        //         ->name('transactions');
-        //     Route::get('/profit', [\App\Http\Controllers\Boss\ReportController::class, 'profit'])
-        //         ->name('profit');
-        // });
+        // Route::get('reports/sales', [\App\Http\Controllers\Boss\ReportController::class, 'sales'])
+        //     ->name('reports.sales');
+        // Route::get('reports/inventory', [\App\Http\Controllers\Boss\ReportController::class, 'inventory'])
+        //     ->name('reports.inventory');
         
-        // Stock Management & Approval
-        // Route::prefix('stock')->name('stock.')->group(function () {
-        //     Route::get('/approvals', [\App\Http\Controllers\Boss\StockApprovalController::class, 'index'])
-        //         ->name('approvals.index');
-        //     Route::post('/approvals/{stockLog}/approve', [\App\Http\Controllers\Boss\StockApprovalController::class, 'approve'])
-        //         ->name('approvals.approve');
-        //     Route::post('/approvals/{stockLog}/reject', [\App\Http\Controllers\Boss\StockApprovalController::class, 'reject'])
-        //         ->name('approvals.reject');
-        //     Route::get('/logs', [\App\Http\Controllers\Boss\StockLogController::class, 'index'])
-        //         ->name('logs.index');
-        // });
-        
-        // Supplier Management
-        // Route::resource('suppliers', \App\Http\Controllers\Boss\SupplierController::class);
-        
-        // Settings
-        // Route::prefix('settings')->name('settings.')->group(function () {
-        //     Route::get('/', [\App\Http\Controllers\Boss\SettingController::class, 'index'])
-        //         ->name('index');
-        //     Route::put('/update', [\App\Http\Controllers\Boss\SettingController::class, 'update'])
-        //         ->name('update');
-        // });
+        // // Stock Approval
+        // Route::get('stock-approvals', [\App\Http\Controllers\Boss\StockApprovalController::class, 'index'])
+        //     ->name('stock-approvals.index');
+        // Route::post('stock-approvals/{stockLog}/approve', [\App\Http\Controllers\Boss\StockApprovalController::class, 'approve'])
+        //     ->name('stock-approvals.approve');
+        // Route::post('stock-approvals/{stockLog}/reject', [\App\Http\Controllers\Boss\StockApprovalController::class, 'reject'])
+        //     ->name('stock-approvals.reject');
     });
+    
 });

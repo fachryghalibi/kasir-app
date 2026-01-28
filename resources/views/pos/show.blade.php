@@ -173,7 +173,7 @@
 <script>
     function printReceipt() {
         // Buka halaman print di window baru
-        window.open('{{ route("pos.receipt", $transaction->id) }}', '_blank', 'width=400,height=600');
+        window.open('{{ route("pos.receipt", $transaction) }}', '_blank', 'width=400,height=600');
     }
 </script>
 @endpush

@@ -185,4 +185,93 @@ class Product extends Model
     {
         return 'uuid';
     }
+
+    /**
+ * Relasi ke Tier Prices
+ */
+public function tierPrices()
+{
+    return $this->hasMany(ProductTierPrice::class)->active()->orderBy('minimum_qty');
+}
+
+/**
+ * Relasi ke Vendors melalui ProductVendorPrice
+ */
+public function vendors()
+{
+    return $this->belongsToMany(Vendor::class, 'product_vendor_prices')
+        ->withPivot('purchase_price', 'effective_from', 'effective_to', 'notes')
+        ->withTimestamps();
+}
+
+/**
+ * Relasi ke ProductVendorPrice
+ */
+public function vendorPrices()
+{
+    return $this->hasMany(ProductVendorPrice::class);
+}
+
+/**
+ * Get harga berdasarkan quantity (tier pricing)
+ * 
+ * @param int $quantity
+ * @return int
+ */
+public function getPriceByQuantity(int $quantity): int
+{
+    // Ambil tier price yang sesuai
+    $tierPrice = $this->tierPrices()
+        ->where('minimum_qty', '<=', $quantity)
+        ->orderBy('minimum_qty', 'desc')
+        ->first();
+
+    // Jika ada tier price, pakai harga tier
+    if ($tierPrice) {
+        return $tierPrice->price;
+    }
+
+    // Jika tidak ada, pakai harga normal
+    return $this->selling_price;
+}
+
+/**
+ * Check if product has tier pricing
+ */
+public function hasTierPricing(): bool
+{
+    return $this->tierPrices()->exists();
+}
+
+/**
+ * Get cheapest vendor untuk produk ini dalam range tanggal
+ */
+public function getCheapestVendor($startDate = null, $endDate = null)
+{
+    $query = $this->vendorPrices()->with('vendor');
+
+    if ($startDate && $endDate) {
+        $query->inDateRange($startDate, $endDate);
+    } else {
+        $query->active();
+    }
+
+    return $query->orderBy('purchase_price', 'asc')->first();
+}
+
+/**
+ * Get average vendor price dalam range tanggal
+ */
+public function getAverageVendorPrice($startDate = null, $endDate = null)
+{
+    $query = $this->vendorPrices();
+
+    if ($startDate && $endDate) {
+        $query->inDateRange($startDate, $endDate);
+    } else {
+        $query->active();
+    }
+
+    return $query->avg('purchase_price') ?? 0;
+}
 }

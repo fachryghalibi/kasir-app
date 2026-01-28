@@ -68,9 +68,11 @@ class TransactionService
             ]);
 
             // 7. Process each item
+            // 7. Process each item
             foreach ($data['items'] as $item) {
                 // Lock product row untuk prevent race condition
                 $product = Product::where('id', $item['product_id'])
+                    ->with('tierPrices') // Load tier prices
                     ->lockForUpdate()
                     ->first();
 
@@ -83,8 +85,11 @@ class TransactionService
                     throw new \Exception("Stok {$product->name} tidak cukup. Tersedia: {$product->stock}");
                 }
 
-                // Calculate item subtotal
-                $itemSubtotal = $item['quantity'] * $item['price'];
+                // ⭐ FITUR BARU: Hitung harga berdasarkan quantity (tier pricing)
+                $pricePerUnit = $product->getPriceByQuantity($item['quantity']);
+
+                // Calculate item subtotal dengan harga tier
+                $itemSubtotal = $item['quantity'] * $pricePerUnit;
 
                 // Create transaction item
                 TransactionItem::create([
@@ -93,21 +98,22 @@ class TransactionService
                     'product_name' => $product->name,
                     'product_sku' => $product->sku,
                     'quantity' => $item['quantity'],
-                    'price' => $item['price'],
+                    'price' => $pricePerUnit, // ⭐ Gunakan harga tier
                     'discount_amount' => 0,
                     'subtotal' => $itemSubtotal,
                 ]);
 
-                // 8. Update product stock
+                $subtotal += $itemSubtotal;
+
+                // Update stock & create log (sama seperti sebelumnya)
                 $stockBefore = $product->stock;
                 $product->decrement('stock', $item['quantity']);
                 $product->refresh();
 
-                // 9. Create stock log
                 StockLog::create([
                     'product_id' => $product->id,
                     'type' => 'out',
-                    'quantity' => -$item['quantity'], // Negatif karena keluar
+                    'quantity' => -$item['quantity'],
                     'stock_before' => $stockBefore,
                     'stock_after' => $product->stock,
                     'reference_type' => 'Transaction',
