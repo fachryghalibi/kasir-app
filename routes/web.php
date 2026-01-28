@@ -64,51 +64,57 @@ Route::middleware('auth')->group(function () {
     */
     
     Route::middleware('boss')->prefix('boss')->name('boss.')->group(function () {
-        // User Management
-        // Route::resource('users', \App\Http\Controllers\Boss\UserController::class);
-        
-        // Product Management
-        Route::resource('products', \App\Http\Controllers\Boss\ProductController::class);
-        
-        // Category Management
-        Route::resource('categories', \App\Http\Controllers\Boss\CategoryController::class);
+    // User Management
+    // Route::resource('users', \App\Http\Controllers\Boss\UserController::class);
+    
+    // Product Management
+    Route::get('products/search', [\App\Http\Controllers\Boss\ProductController::class, 'search'])
+        ->name('products.search'); // ← TAMBAHAN BARU (HARUS SEBELUM RESOURCE)
+    
+    Route::resource('products', \App\Http\Controllers\Boss\ProductController::class);
+    
+    // Category Management
+    Route::resource('categories', \App\Http\Controllers\Boss\CategoryController::class);
 
-            // Vendor Management
-        Route::resource('vendors', \App\Http\Controllers\Boss\VendorController::class);
-        
-        // Vendor Comparison
-        Route::get('vendor-comparison', [\App\Http\Controllers\Boss\VendorComparisonController::class, 'index'])
-            ->name('vendor-comparison.index');
-        Route::post('vendor-comparison', [\App\Http\Controllers\Boss\VendorComparisonController::class, 'compare'])
-            ->name('vendor-comparison.compare');
-        
-        // Product Tier Prices (akan dibuat di step selanjutnya)
-        Route::get('products/{product}/tier-prices', [\App\Http\Controllers\Boss\ProductTierPriceController::class, 'index'])
-            ->name('products.tier-prices.index');
-        Route::post('products/{product}/tier-prices', [\App\Http\Controllers\Boss\ProductTierPriceController::class, 'store'])
-            ->name('products.tier-prices.store');
-        Route::delete('tier-prices/{tierPrice}', [\App\Http\Controllers\Boss\ProductTierPriceController::class, 'destroy'])
-            ->name('tier-prices.destroy');
-        
-        // Product Vendor Prices (akan dibuat di step selanjutnya)
-        Route::get('products/{product}/vendor-prices', [\App\Http\Controllers\Boss\ProductVendorPriceController::class, 'index'])
-            ->name('products.vendor-prices.index');
-        Route::post('products/{product}/vendor-prices', [\App\Http\Controllers\Boss\ProductVendorPriceController::class, 'store'])
-            ->name('products.vendor-prices.store');
-        
-        // Reports
-        // Route::get('reports/sales', [\App\Http\Controllers\Boss\ReportController::class, 'sales'])
-        //     ->name('reports.sales');
-        // Route::get('reports/inventory', [\App\Http\Controllers\Boss\ReportController::class, 'inventory'])
-        //     ->name('reports.inventory');
-        
-        // // Stock Approval
-        // Route::get('stock-approvals', [\App\Http\Controllers\Boss\StockApprovalController::class, 'index'])
-        //     ->name('stock-approvals.index');
-        // Route::post('stock-approvals/{stockLog}/approve', [\App\Http\Controllers\Boss\StockApprovalController::class, 'approve'])
-        //     ->name('stock-approvals.approve');
-        // Route::post('stock-approvals/{stockLog}/reject', [\App\Http\Controllers\Boss\StockApprovalController::class, 'reject'])
-        //     ->name('stock-approvals.reject');
-    });
+    // Vendor Management
+    Route::get('vendors/search', [\App\Http\Controllers\Boss\VendorController::class, 'search'])
+        ->name('vendors.search'); // ← BONUS: untuk autocomplete vendor nanti (optional)
+    
+    Route::resource('vendors', \App\Http\Controllers\Boss\VendorController::class);
+    
+    // Vendor Comparison
+    Route::get('vendor-comparison', [\App\Http\Controllers\Boss\VendorComparisonController::class, 'index'])
+        ->name('vendor-comparison.index');
+    Route::post('vendor-comparison', [\App\Http\Controllers\Boss\VendorComparisonController::class, 'compare'])
+        ->name('vendor-comparison.compare');
+    
+    // Product Tier Prices (akan dibuat di step selanjutnya)
+    Route::get('products/{product}/tier-prices', [\App\Http\Controllers\Boss\ProductTierPriceController::class, 'index'])
+        ->name('products.tier-prices.index');
+    Route::post('products/{product}/tier-prices', [\App\Http\Controllers\Boss\ProductTierPriceController::class, 'store'])
+        ->name('products.tier-prices.store');
+    Route::delete('tier-prices/{tierPrice}', [\App\Http\Controllers\Boss\ProductTierPriceController::class, 'destroy'])
+        ->name('tier-prices.destroy');
+    
+    // Product Vendor Prices (akan dibuat di step selanjutnya)
+    Route::get('products/{product}/vendor-prices', [\App\Http\Controllers\Boss\ProductVendorPriceController::class, 'index'])
+        ->name('products.vendor-prices.index');
+    Route::post('products/{product}/vendor-prices', [\App\Http\Controllers\Boss\ProductVendorPriceController::class, 'store'])
+        ->name('products.vendor-prices.store');
+    
+    // Reports
+    // Route::get('reports/sales', [\App\Http\Controllers\Boss\ReportController::class, 'sales'])
+    //     ->name('reports.sales');
+    // Route::get('reports/inventory', [\App\Http\Controllers\Boss\ReportController::class, 'inventory'])
+    //     ->name('reports.inventory');
+    
+    // // Stock Approval
+    // Route::get('stock-approvals', [\App\Http\Controllers\Boss\StockApprovalController::class, 'index'])
+    //     ->name('stock-approvals.index');
+    // Route::post('stock-approvals/{stockLog}/approve', [\App\Http\Controllers\Boss\StockApprovalController::class, 'approve'])
+    //     ->name('stock-approvals.approve');
+    // Route::post('stock-approvals/{stockLog}/reject', [\App\Http\Controllers\Boss\StockApprovalController::class, 'reject'])
+    //     ->name('stock-approvals.reject');
+});
     
 });

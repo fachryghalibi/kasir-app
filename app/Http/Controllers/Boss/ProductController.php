@@ -57,69 +57,159 @@ class ProductController extends Controller
     public function create()
     {
         $categories = Category::active()->orderBy('name')->get();
-        $vendors = \App\Models\Vendor::active()->orderBy('name')->get(); // Tambah ini
+        $vendors = \App\Models\Vendor::active()->orderBy('name')->get();
         
-        return view('boss.products.create', compact('categories', 'vendors')); // Update ini
+        return view('boss.products.create', compact('categories', 'vendors'));
+    }
+
+    /**
+     * Search products for autocomplete (AJAX)
+     */
+    public function search(Request $request)
+    {
+        try {
+            $query = $request->get('q', '');
+            
+            // Minimum 2 characters
+            if (strlen($query) < 2) {
+                return response()->json([]);
+            }
+
+            $products = Product::where('name', 'LIKE', "%{$query}%")
+                ->orWhere('sku', 'LIKE', "%{$query}%")
+                ->orWhere('barcode', 'LIKE', "%{$query}%")
+                ->with(['category', 'vendorPrices.vendor'])
+                ->limit(10)
+                ->get()
+                ->map(function($product) {
+                    return [
+                        'id' => $product->id,
+                        'name' => $product->name,
+                        'sku' => $product->sku,
+                        'barcode' => $product->barcode,
+                        'unit' => $product->unit,
+                        'stock' => $product->stock,
+                        'purchase_price' => $product->purchase_price,
+                        'selling_price' => $product->selling_price,
+                        'min_stock' => $product->min_stock,
+                        'category_id' => $product->category_id,
+                        'description' => $product->description,
+                        'vendors' => $product->vendorPrices->map(function($vp) {
+                            return [
+                                'vendor_id' => $vp->vendor_id,
+                                'vendor_name' => $vp->vendor->name ?? '-',
+                                'price' => $vp->purchase_price,
+                                'quantity' => $vp->quantity,
+                                'effective_from' => $vp->effective_from,
+                            ];
+                        })
+                    ];
+                });
+
+            return response()->json($products);
+            
+        } catch (\Exception $e) {
+            \Log::error('Product search error: ' . $e->getMessage());
+            \Log::error($e->getTraceAsString());
+            
+            return response()->json([
+                'error' => 'Terjadi kesalahan saat mencari produk',
+                'message' => $e->getMessage()
+            ], 500);
+        }
     }
 
     /**
      * Store a newly created product
      */
     public function store(Request $request)
-{
-    $validated = $request->validate([
-        'name' => 'required|string|max:200',
-        'category_id' => 'nullable|exists:categories,id',
-        'sku' => 'nullable|string|max:50|unique:products,sku',
-        'barcode' => 'nullable|string|max:50|unique:products,barcode',
-        'description' => 'nullable|string',
-        'purchase_price' => 'required|numeric|min:0',
-        'selling_price' => 'required|numeric|min:0',
-        'stock' => 'required|integer|min:0',
-        'min_stock' => 'required|integer|min:0',
-        'unit' => 'required|string|max:20',
-        'is_active' => 'boolean',
-        'is_featured' => 'boolean',
+    {
+        $validated = $request->validate([
+            'product_id' => 'nullable|exists:products,id',
+            'name' => 'required|string|max:200',
+            'category_id' => 'nullable|exists:categories,id',
+            'sku' => 'nullable|string|max:50',
+            'barcode' => 'nullable|string|max:50',
+            'description' => 'nullable|string',
+            'purchase_price' => 'required|numeric|min:0',
+            'selling_price' => 'required|numeric|min:0',
+            'min_stock' => 'required|integer|min:0',
+            'unit' => 'required|string|max:20',
+            'is_active' => 'boolean',
+            'is_featured' => 'boolean',
+            
+            'vendors' => 'required|array|min:1',
+            'vendors.*.vendor_id' => 'required|exists:vendors,id',
+            'vendors.*.quantity' => 'required|integer|min:1',
+            'vendors.*.vendor_price' => 'required|numeric|min:0',
+            'vendors.*.effective_from' => 'required|date',
+            'vendors.*.notes' => 'nullable|string|max:500',
+        ], [
+            'name.required' => 'Nama produk wajib diisi',
+            'purchase_price.required' => 'Harga beli wajib diisi',
+            'selling_price.required' => 'Harga jual wajib diisi',
+            'vendors.required' => 'Minimal 1 vendor harus ditambahkan',
+            'vendors.*.vendor_id.required' => 'Vendor wajib dipilih',
+            'vendors.*.quantity.required' => 'Jumlah wajib diisi',
+            'vendors.*.vendor_price.required' => 'Harga vendor wajib diisi',
+            'vendors.*.effective_from.required' => 'Tanggal mulai berlaku wajib diisi',
+        ]);
+
+        // Cek: Update existing product atau create new
+        if ($request->filled('product_id')) {
+            // UPDATE EXISTING PRODUCT (Tambah Stock)
+            $product = Product::findOrFail($request->product_id);
+            
+            // Update data product (kategori, harga, dll bisa diubah)
+            $product->update([
+                'category_id' => $validated['category_id'],
+                'purchase_price' => $validated['purchase_price'],
+                'selling_price' => $validated['selling_price'],
+                'min_stock' => $validated['min_stock'],
+                'description' => $validated['description'] ?? $product->description,
+                'is_active' => $request->boolean('is_active', true),
+                'is_featured' => $request->boolean('is_featured', false),
+                'updated_by' => auth()->id(),
+            ]);
+
+            $message = 'Stock produk berhasil ditambahkan!';
+            
+        } else {
+            // CREATE NEW PRODUCT
+            $validated['created_by'] = auth()->id();
+            $validated['is_active'] = $request->boolean('is_active', true);
+            $validated['is_featured'] = $request->boolean('is_featured', false);
+            $validated['stock'] = 0; // Initial stock = 0, akan di-increment dari vendor
+            
+            $product = Product::create($validated);
+            
+            $message = 'Produk baru berhasil ditambahkan!';
+        }
+
+        // Process vendors - SELALU BUAT RECORD BARU (HISTORY)
+        $totalStock = 0;
         
-        // Validasi untuk vendor (TAMBAHAN BARU)
-        'vendors' => 'nullable|array',
-        'vendors.*.vendor_id' => 'required|exists:vendors,id',
-        'vendors.*.vendor_price' => 'required|numeric|min:0',
-        'vendors.*.effective_from' => 'required|date',
-        'vendors.*.notes' => 'nullable|string|max:500',
-    ], [
-        'name.required' => 'Nama produk wajib diisi',
-        'selling_price.required' => 'Harga jual wajib diisi',
-        'stock.required' => 'Stok wajib diisi',
-        'vendors.*.vendor_id.required' => 'Vendor wajib dipilih',
-        'vendors.*.vendor_price.required' => 'Harga vendor wajib diisi',
-        'vendors.*.effective_from.required' => 'Tanggal mulai berlaku wajib diisi',
-    ]);
-
-    $validated['created_by'] = auth()->id();
-    $validated['is_active'] = $request->boolean('is_active', true);
-    $validated['is_featured'] = $request->boolean('is_featured', false);
-
-    // Create product
-    $product = Product::create($validated);
-
-    // Save vendor prices (TAMBAHAN BARU)
-    if ($request->has('vendors') && is_array($request->vendors)) {
         foreach ($request->vendors as $vendorData) {
+            // SELALU buat record baru, tidak update yang lama
             $product->vendorPrices()->create([
                 'vendor_id' => $vendorData['vendor_id'],
                 'purchase_price' => $vendorData['vendor_price'],
+                'quantity' => $vendorData['quantity'],
                 'effective_from' => $vendorData['effective_from'],
-                'effective_to' => null, // Masih berlaku
+                'effective_to' => null, // Semua record tetap NULL (active)
                 'notes' => $vendorData['notes'] ?? null,
                 'created_by' => auth()->id(),
             ]);
+            
+            $totalStock += $vendorData['quantity'];
         }
-    }
 
-    return redirect()->route('boss.products.index')
-        ->with('success', 'Produk berhasil ditambahkan dengan ' . count($request->vendors ?? []) . ' vendor!');
-}
+        // Update total stock product
+        $product->increment('stock', $totalStock);
+
+        return redirect()->route('boss.products.index')
+            ->with('success', $message . ' Total stock bertambah: +' . $totalStock . ' ' . $product->unit);
+    }
 
     /**
      * Display the specified product
