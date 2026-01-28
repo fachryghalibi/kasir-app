@@ -57,42 +57,69 @@ class ProductController extends Controller
     public function create()
     {
         $categories = Category::active()->orderBy('name')->get();
-        return view('boss.products.create', compact('categories'));
+        $vendors = \App\Models\Vendor::active()->orderBy('name')->get(); // Tambah ini
+        
+        return view('boss.products.create', compact('categories', 'vendors')); // Update ini
     }
 
     /**
      * Store a newly created product
      */
     public function store(Request $request)
-    {
-        $validated = $request->validate([
-            'name' => 'required|string|max:200',
-            'category_id' => 'nullable|exists:categories,id',
-            'sku' => 'nullable|string|max:50|unique:products,sku',
-            'barcode' => 'nullable|string|max:50|unique:products,barcode',
-            'description' => 'nullable|string',
-            'purchase_price' => 'required|numeric|min:0',
-            'selling_price' => 'required|numeric|min:0',
-            'stock' => 'required|integer|min:0',
-            'min_stock' => 'required|integer|min:0',
-            'unit' => 'required|string|max:20',
-            'is_active' => 'boolean',
-            'is_featured' => 'boolean',
-        ], [
-            'name.required' => 'Nama produk wajib diisi',
-            'selling_price.required' => 'Harga jual wajib diisi',
-            'stock.required' => 'Stok wajib diisi',
-        ]);
+{
+    $validated = $request->validate([
+        'name' => 'required|string|max:200',
+        'category_id' => 'nullable|exists:categories,id',
+        'sku' => 'nullable|string|max:50|unique:products,sku',
+        'barcode' => 'nullable|string|max:50|unique:products,barcode',
+        'description' => 'nullable|string',
+        'purchase_price' => 'required|numeric|min:0',
+        'selling_price' => 'required|numeric|min:0',
+        'stock' => 'required|integer|min:0',
+        'min_stock' => 'required|integer|min:0',
+        'unit' => 'required|string|max:20',
+        'is_active' => 'boolean',
+        'is_featured' => 'boolean',
+        
+        // Validasi untuk vendor (TAMBAHAN BARU)
+        'vendors' => 'nullable|array',
+        'vendors.*.vendor_id' => 'required|exists:vendors,id',
+        'vendors.*.vendor_price' => 'required|numeric|min:0',
+        'vendors.*.effective_from' => 'required|date',
+        'vendors.*.notes' => 'nullable|string|max:500',
+    ], [
+        'name.required' => 'Nama produk wajib diisi',
+        'selling_price.required' => 'Harga jual wajib diisi',
+        'stock.required' => 'Stok wajib diisi',
+        'vendors.*.vendor_id.required' => 'Vendor wajib dipilih',
+        'vendors.*.vendor_price.required' => 'Harga vendor wajib diisi',
+        'vendors.*.effective_from.required' => 'Tanggal mulai berlaku wajib diisi',
+    ]);
 
-        $validated['created_by'] = auth()->id();
-        $validated['is_active'] = $request->boolean('is_active', true);
-        $validated['is_featured'] = $request->boolean('is_featured', false);
+    $validated['created_by'] = auth()->id();
+    $validated['is_active'] = $request->boolean('is_active', true);
+    $validated['is_featured'] = $request->boolean('is_featured', false);
 
-        Product::create($validated);
+    // Create product
+    $product = Product::create($validated);
 
-        return redirect()->route('boss.products.index')
-            ->with('success', 'Produk berhasil ditambahkan!');
+    // Save vendor prices (TAMBAHAN BARU)
+    if ($request->has('vendors') && is_array($request->vendors)) {
+        foreach ($request->vendors as $vendorData) {
+            $product->vendorPrices()->create([
+                'vendor_id' => $vendorData['vendor_id'],
+                'purchase_price' => $vendorData['vendor_price'],
+                'effective_from' => $vendorData['effective_from'],
+                'effective_to' => null, // Masih berlaku
+                'notes' => $vendorData['notes'] ?? null,
+                'created_by' => auth()->id(),
+            ]);
+        }
     }
+
+    return redirect()->route('boss.products.index')
+        ->with('success', 'Produk berhasil ditambahkan dengan ' . count($request->vendors ?? []) . ' vendor!');
+}
 
     /**
      * Display the specified product
