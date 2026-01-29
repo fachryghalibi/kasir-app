@@ -48,6 +48,34 @@ class VendorController extends Controller
         return view('boss.vendors.edit', compact('vendor'));
     }
 
+ public function show(Vendor $vendor)
+{
+    $vendor->load(['productPrices.product.category']);
+    
+    // Filter hanya harga yang masih berlaku (aktif)
+    $productsByCategory = $vendor->productPrices()
+        ->with(['product.category'])
+        ->active() // Tambahkan scope active
+        ->get()
+        ->filter(function($productPrice) {
+            return $productPrice->product !== null;
+        })
+        ->groupBy(function($productPrice) {
+            if ($productPrice->product && $productPrice->product->category) {
+                return $productPrice->product->category->name;
+            }
+            return 'Tanpa Kategori';
+        });
+
+    // Hitung total produk unik (bukan total harga)
+    $totalUniqueProducts = $vendor->productPrices()
+        ->active()
+        ->distinct('product_id')
+        ->count('product_id');
+
+    return view('boss.vendors.show', compact('vendor', 'productsByCategory', 'totalUniqueProducts'));
+}
+
     public function update(Request $request, Vendor $vendor)
     {
         $validated = $request->validate([

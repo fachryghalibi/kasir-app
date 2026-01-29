@@ -76,6 +76,8 @@ Route::middleware('auth')->group(function () {
     // Category Management
     Route::resource('categories', \App\Http\Controllers\Boss\CategoryController::class);
 
+    Route::resource('vendors', VendorController::class);
+
     // Vendor Management
     Route::get('vendors/search', [\App\Http\Controllers\Boss\VendorController::class, 'search'])
         ->name('vendors.search'); // ← BONUS: untuk autocomplete vendor nanti (optional)
