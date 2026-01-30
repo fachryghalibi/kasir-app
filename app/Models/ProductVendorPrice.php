@@ -13,6 +13,7 @@ class ProductVendorPrice extends Model
         'product_id',
         'vendor_id',
         'purchase_price',
+        'quantity',
         'effective_from',
         'effective_to',
         'notes',
@@ -21,12 +22,26 @@ class ProductVendorPrice extends Model
 
     protected $casts = [
         'purchase_price' => 'integer',
+        'quantity' => 'integer',
         'effective_from' => 'date',
         'effective_to' => 'date',
     ];
 
     /**
-     * Relasi ke Product
+     * Boot function
+     */
+    protected static function boot()
+    {
+        parent::boot();
+
+        // ✨ Auto-create cash flow saat pembelian dari vendor
+        static::created(function ($model) {
+            $model->createCashFlow();
+        });
+    }
+
+    /**
+     * Relasi: ProductVendorPrice belongs to Product
      */
     public function product()
     {
@@ -34,7 +49,7 @@ class ProductVendorPrice extends Model
     }
 
     /**
-     * Relasi ke Vendor
+     * Relasi: ProductVendorPrice belongs to Vendor
      */
     public function vendor()
     {
@@ -42,7 +57,7 @@ class ProductVendorPrice extends Model
     }
 
     /**
-     * Relasi ke User (created by)
+     * Relasi: User yang create
      */
     public function creator()
     {
@@ -50,49 +65,124 @@ class ProductVendorPrice extends Model
     }
 
     /**
-     * Scope untuk harga yang masih berlaku (active)
+     * ✨ Relasi ke CashFlow
      */
-    public function scopeActive($query)
+    public function cashFlow()
     {
-        return $query->where('effective_from', '<=', now())
-            ->where(function($q) {
-                $q->whereNull('effective_to')
-                  ->orWhere('effective_to', '>=', now());
-            });
+        return $this->morphOne(CashFlow::class, 'reference');
     }
 
     /**
-     * Scope untuk harga dalam range tanggal tertentu
+     * ✅ PERBAIKAN: Create cash flow otomatis untuk purchase
      */
-    public function scopeInDateRange($query, $startDate, $endDate)
+    public function createCashFlow()
     {
-        return $query->where(function($q) use ($startDate, $endDate) {
-            $q->whereBetween('effective_from', [$startDate, $endDate])
-              ->orWhere(function($q2) use ($startDate, $endDate) {
-                  $q2->where('effective_from', '<=', $startDate)
-                     ->where(function($q3) use ($endDate) {
-                         $q3->whereNull('effective_to')
-                            ->orWhere('effective_to', '>=', $endDate);
-                     });
-              });
+        // Cek apakah sudah ada cash flow
+        if ($this->cashFlow) {
+            return $this->cashFlow;
+        }
+
+        // Total amount = purchase_price × quantity
+        $totalAmount = $this->purchase_price * $this->quantity;
+
+        return CashFlow::create([
+            'type' => 'expense',
+            'source' => 'purchase',
+            'cash_flow_category_id' => null, // ✅ PERBAIKAN: Tambahkan field ini
+            'amount' => $totalAmount,
+            'description' => sprintf(
+                'Pembelian %s - %d %s @ Rp %s dari %s',
+                $this->product->name,
+                $this->quantity,
+                $this->product->unit,
+                number_format($this->purchase_price, 0, ',', '.'),
+                $this->vendor->name
+            ),
+            'reference_type' => self::class,
+            'reference_id' => $this->id,
+            'transaction_date' => $this->effective_from->format('Y-m-d'),
+            'payment_method' => null, // ✅ PERBAIKAN: Tambahkan field ini
+            'receipt_number' => null, // ✅ PERBAIKAN: Tambahkan field ini
+            'vendor_id' => $this->vendor_id,
+            'created_by' => $this->created_by,
+            'approval_status' => 'approved',
+            'approved_by' => $this->created_by, // ✅ PERBAIKAN: Tambahkan field ini
+            'approved_at' => now(), // ✅ PERBAIKAN: Tambahkan field ini
+        ]);
+    }
+
+    /**
+     * Scope: Active prices (effective_to is null or in future)
+     */
+    public function scopeActive($query)
+    {
+        return $query->where(function ($q) {
+            $q->whereNull('effective_to')
+              ->orWhere('effective_to', '>=', now());
         });
     }
 
     /**
-     * Check if price is currently active
+     * Scope: In date range
      */
-    public function isActive(): bool
+    public function scopeInDateRange($query, $startDate, $endDate)
     {
-        $now = now()->toDateString();
-        return $this->effective_from <= $now && 
-               (is_null($this->effective_to) || $this->effective_to >= $now);
+        return $query->where('effective_from', '<=', $endDate)
+            ->where(function ($q) use ($startDate) {
+                $q->whereNull('effective_to')
+                  ->orWhere('effective_to', '>=', $startDate);
+            });
     }
 
     /**
-     * Get formatted price
+     * Scope: By vendor
      */
-    public function getFormattedPriceAttribute(): string
+    public function scopeByVendor($query, $vendorId)
+    {
+        return $query->where('vendor_id', $vendorId);
+    }
+
+    /**
+     * Scope: By product
+     */
+    public function scopeByProduct($query, $productId)
+    {
+        return $query->where('product_id', $productId);
+    }
+
+    /**
+     * Check if price is still active
+     */
+    public function isActive(): bool
+    {
+        if (!$this->effective_to) {
+            return true;
+        }
+        
+        return $this->effective_to->isFuture() || $this->effective_to->isToday();
+    }
+
+    /**
+     * Get formatted purchase price
+     */
+    public function getFormattedPurchasePriceAttribute(): string
     {
         return 'Rp ' . number_format($this->purchase_price, 0, ',', '.');
+    }
+
+    /**
+     * Get total amount (price × quantity)
+     */
+    public function getTotalAmountAttribute(): int
+    {
+        return $this->purchase_price * $this->quantity;
+    }
+
+    /**
+     * Get formatted total amount
+     */
+    public function getFormattedTotalAmountAttribute(): string
+    {
+        return 'Rp ' . number_format($this->total_amount, 0, ',', '.');
     }
 }

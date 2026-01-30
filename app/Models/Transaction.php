@@ -61,6 +61,23 @@ class Transaction extends Model
                 $model->invoice_number = static::generateInvoiceNumber();
             }
         });
+
+        // ✨ AUTO CREATE CASH FLOW
+        static::created(function ($model) {
+            if ($model->status === 'completed') {
+                $model->createCashFlow();
+            }
+        });
+
+        static::updated(function ($model) {
+            if ($model->isDirty('status')) {
+                if ($model->status === 'completed' && !$model->cashFlow) {
+                    $model->createCashFlow();
+                } elseif ($model->status === 'refunded') {
+                    $model->createRefundCashFlow();
+                }
+            }
+        });
     }
 
     /**
@@ -101,6 +118,14 @@ class Transaction extends Model
     public function refunder()
     {
         return $this->belongsTo(User::class, 'refunded_by');
+    }
+
+    /**
+     * ✨ Relasi ke CashFlow
+     */
+    public function cashFlow()
+    {
+        return $this->morphOne(CashFlow::class, 'reference');
     }
 
     /**
@@ -218,5 +243,58 @@ class Transaction extends Model
     public function getRouteKeyName()
     {
         return 'uuid';
+    }
+
+    /**
+     * ✅ PERBAIKAN: Create cash flow otomatis untuk transaction
+     */
+    public function createCashFlow()
+    {
+        // Cek apakah sudah ada cash flow
+        if ($this->cashFlow) {
+            return $this->cashFlow;
+        }
+
+        return CashFlow::create([
+            'type' => 'income',
+            'source' => 'sale',
+            'cash_flow_category_id' => null, // ✅ PERBAIKAN: Tambahkan field ini
+            'amount' => $this->total,
+            'description' => 'Penjualan - ' . $this->invoice_number,
+            'reference_type' => self::class,
+            'reference_id' => $this->id,
+            'transaction_date' => $this->created_at->format('Y-m-d'),
+            'payment_method' => $this->payment_method,
+            'receipt_number' => $this->invoice_number, // ✅ PERBAIKAN: Gunakan invoice number
+            'vendor_id' => null, // ✅ PERBAIKAN: Tambahkan field ini
+            'created_by' => $this->user_id,
+            'approval_status' => 'approved',
+            'approved_by' => $this->user_id, // ✅ PERBAIKAN: Tambahkan field ini
+            'approved_at' => now(), // ✅ PERBAIKAN: Tambahkan field ini
+        ]);
+    }
+
+    /**
+     * ✅ PERBAIKAN: Create refund cash flow
+     */
+    public function createRefundCashFlow()
+    {
+        return CashFlow::create([
+            'type' => 'expense',
+            'source' => 'refund',
+            'cash_flow_category_id' => null, // ✅ PERBAIKAN: Tambahkan field ini
+            'amount' => $this->total,
+            'description' => 'Refund - ' . $this->invoice_number . ($this->refund_reason ? ' - ' . $this->refund_reason : ''),
+            'reference_type' => self::class,
+            'reference_id' => $this->id,
+            'transaction_date' => now()->format('Y-m-d'),
+            'payment_method' => $this->payment_method, // ✅ PERBAIKAN: Gunakan payment method yang sama
+            'receipt_number' => $this->invoice_number, // ✅ PERBAIKAN: Tambahkan field ini
+            'vendor_id' => null, // ✅ PERBAIKAN: Tambahkan field ini
+            'created_by' => $this->refunded_by ?? auth()->id(),
+            'approval_status' => 'approved',
+            'approved_by' => $this->refunded_by ?? auth()->id(), // ✅ PERBAIKAN: Tambahkan field ini
+            'approved_at' => now(), // ✅ PERBAIKAN: Tambahkan field ini
+        ]);
     }
 }
