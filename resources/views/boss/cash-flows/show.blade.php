@@ -18,12 +18,16 @@
 
         <div class="flex gap-2">
             @if($cashFlow->canBeApproved())
+                {{-- Form Approve - MENGGUNAKAN PATCH --}}
                 <form action="{{ route('boss.cash-flows.approve', $cashFlow) }}" method="POST" class="inline">
                     @csrf
+                    @method('PATCH')
                     <button type="submit" class="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors">
                         Approve
                     </button>
                 </form>
+                
+                {{-- Tombol Reject - Membuka Modal --}}
                 <button onclick="document.getElementById('rejectModal').classList.remove('hidden')" 
                     class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors">
                     Reject
@@ -163,8 +167,12 @@
         <div class="px-6 py-4 border-b border-gray-200">
             <h3 class="text-lg font-semibold text-gray-900">Reject Cash Flow</h3>
         </div>
+        
+        {{-- Form Reject - MENGGUNAKAN PATCH --}}
         <form action="{{ route('boss.cash-flows.reject', $cashFlow) }}" method="POST" class="p-6">
             @csrf
+            @method('PATCH')
+            
             <div class="mb-4">
                 <label for="rejection_reason" class="block text-sm font-medium text-gray-700 mb-2">
                     Alasan Penolakan <span class="text-red-500">*</span>
@@ -173,6 +181,7 @@
                     class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
                     placeholder="Jelaskan alasan penolakan..."></textarea>
             </div>
+            
             <div class="flex items-center justify-end gap-3">
                 <button type="button" onclick="document.getElementById('rejectModal').classList.add('hidden')" 
                     class="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-colors">
