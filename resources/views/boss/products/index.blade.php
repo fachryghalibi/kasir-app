@@ -21,7 +21,7 @@
 
     <!-- Filter & Search -->
     <div class="bg-white rounded-xl shadow-sm p-6 border border-gray-200">
-        <form method="GET" action="{{ route('boss.products.index') }}" class="grid grid-cols-1 md:grid-cols-5 gap-4">
+        <form method="GET" action="{{ route('boss.products.index') }}" class="grid grid-cols-1 md:grid-cols-6 gap-4">
             <!-- Search -->
             <div class="md:col-span-2">
                 <input 
@@ -51,6 +51,16 @@
                     <option value="">Semua Status</option>
                     <option value="active" {{ request('status') === 'active' ? 'selected' : '' }}>Aktif</option>
                     <option value="inactive" {{ request('status') === 'inactive' ? 'selected' : '' }}>Nonaktif</option>
+                </select>
+            </div>
+
+            <!-- Stock Status Filter (BARU) -->
+            <div>
+                <select name="stock_status" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
+                    <option value="">Semua Stock</option>
+                    <option value="out" {{ request('stock_status') === 'out' ? 'selected' : '' }}>🔴 Habis (0)</option>
+                    <option value="low" {{ request('stock_status') === 'low' ? 'selected' : '' }}>🟡 Stock Rendah</option>
+                    <option value="normal" {{ request('stock_status') === 'normal' ? 'selected' : '' }}>🟢 Stock Normal</option>
                 </select>
             </div>
 

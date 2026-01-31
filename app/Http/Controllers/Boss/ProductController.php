@@ -41,12 +41,17 @@ class ProductController extends Controller
 
         // Filter by stock status
         if ($request->filled('stock_status')) {
-            if ($request->stock_status === 'low') {
-                $query->lowStock();
-            } elseif ($request->stock_status === 'out') {
+            if ($request->stock_status === 'out') {
+                // Stock habis (0)
                 $query->where('stock', 0);
-            }
+            } elseif ($request->stock_status === 'low') {
+                // Stock rendah (menggunakan scope lowStock())
+                $query->lowStock();
+            } elseif ($request->stock_status === 'normal') {
+                // Stock normal (stock > min_stock)
+                $query->where('stock', '>', \DB::raw('min_stock'));
         }
+}
 
         $products = $query->latest()->paginate(20);
         $categories = Category::active()->orderBy('name')->get();
