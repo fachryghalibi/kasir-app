@@ -28,20 +28,7 @@ class ProductVendorPrice extends Model
     ];
 
     /**
-     * Boot function
-     */
-    protected static function boot()
-    {
-        parent::boot();
-
-        // ✨ Auto-create cash flow saat pembelian dari vendor
-        static::created(function ($model) {
-            $model->createCashFlow();
-        });
-    }
-
-    /**
-     * Relasi: ProductVendorPrice belongs to Product
+     * Relasi ke Product
      */
     public function product()
     {
@@ -49,7 +36,7 @@ class ProductVendorPrice extends Model
     }
 
     /**
-     * Relasi: ProductVendorPrice belongs to Vendor
+     * Relasi ke Vendor
      */
     public function vendor()
     {
@@ -57,7 +44,7 @@ class ProductVendorPrice extends Model
     }
 
     /**
-     * Relasi: User yang create
+     * Relasi ke User (creator)
      */
     public function creator()
     {
@@ -65,7 +52,7 @@ class ProductVendorPrice extends Model
     }
 
     /**
-     * ✨ Relasi ke CashFlow
+     * Relasi ke CashFlow (polymorphic)
      */
     public function cashFlow()
     {
@@ -73,7 +60,7 @@ class ProductVendorPrice extends Model
     }
 
     /**
-     * ✅ PERBAIKAN: Create cash flow otomatis untuk purchase
+     * Create cash flow untuk pembelian stock dari vendor
      */
     public function createCashFlow()
     {
@@ -82,44 +69,55 @@ class ProductVendorPrice extends Model
             return $this->cashFlow;
         }
 
-        // Total amount = purchase_price × quantity
-        $totalAmount = $this->purchase_price * $this->quantity;
+        // Cari atau buat kategori "Pembelian Stock"
+        $category = CashFlowCategory::firstOrCreate(
+            [
+                'name' => 'Pembelian Stock',
+                'type' => 'expense',
+            ],
+            [
+                'description' => 'Pengeluaran untuk pembelian stock produk dari vendor',
+                'is_active' => true,
+                'sort_order' => 0,
+            ]
+        );
+
+        // Calculate total expense
+        $totalExpense = $this->quantity * $this->purchase_price;
 
         return CashFlow::create([
             'type' => 'expense',
             'source' => 'purchase',
-            'cash_flow_category_id' => null, // ✅ PERBAIKAN: Tambahkan field ini
-            'amount' => $totalAmount,
+            'cash_flow_category_id' => $category->id,
+            'amount' => $totalExpense,
             'description' => sprintf(
-                'Pembelian %s - %d %s @ Rp %s dari %s',
+                'Pembelian stock: %s (%d %s) dari %s @ Rp %s',
                 $this->product->name,
                 $this->quantity,
                 $this->product->unit,
-                number_format($this->purchase_price, 0, ',', '.'),
-                $this->vendor->name
+                $this->vendor->name,
+                number_format($this->purchase_price, 0, ',', '.')
             ),
             'reference_type' => self::class,
             'reference_id' => $this->id,
-            'transaction_date' => $this->effective_from->format('Y-m-d'),
-            'payment_method' => null, // ✅ PERBAIKAN: Tambahkan field ini
-            'receipt_number' => null, // ✅ PERBAIKAN: Tambahkan field ini
+            'transaction_date' => $this->effective_from,
+            'payment_method' => null,
+            'receipt_number' => null,
             'vendor_id' => $this->vendor_id,
             'created_by' => $this->created_by,
             'approval_status' => 'approved',
-            'approved_by' => $this->created_by, // ✅ PERBAIKAN: Tambahkan field ini
-            'approved_at' => now(), // ✅ PERBAIKAN: Tambahkan field ini
+            'approved_by' => $this->created_by,
+            'approved_at' => now(),
         ]);
     }
 
     /**
-     * Scope: Active prices (effective_to is null or in future)
+     * Scope: Active vendor prices (masih berlaku)
      */
     public function scopeActive($query)
     {
-        return $query->where(function ($q) {
-            $q->whereNull('effective_to')
-              ->orWhere('effective_to', '>=', now());
-        });
+        return $query->whereNull('effective_to')
+            ->orWhere('effective_to', '>=', now());
     }
 
     /**
@@ -130,7 +128,7 @@ class ProductVendorPrice extends Model
         return $query->where('effective_from', '<=', $endDate)
             ->where(function ($q) use ($startDate) {
                 $q->whereNull('effective_to')
-                  ->orWhere('effective_to', '>=', $startDate);
+                    ->orWhere('effective_to', '>=', $startDate);
             });
     }
 
@@ -143,46 +141,26 @@ class ProductVendorPrice extends Model
     }
 
     /**
-     * Scope: By product
+     * Get formatted price
      */
-    public function scopeByProduct($query, $productId)
-    {
-        return $query->where('product_id', $productId);
-    }
-
-    /**
-     * Check if price is still active
-     */
-    public function isActive(): bool
-    {
-        if (!$this->effective_to) {
-            return true;
-        }
-        
-        return $this->effective_to->isFuture() || $this->effective_to->isToday();
-    }
-
-    /**
-     * Get formatted purchase price
-     */
-    public function getFormattedPurchasePriceAttribute(): string
+    public function getFormattedPriceAttribute(): string
     {
         return 'Rp ' . number_format($this->purchase_price, 0, ',', '.');
     }
 
     /**
-     * Get total amount (price × quantity)
+     * Get total value (quantity × price)
      */
-    public function getTotalAmountAttribute(): int
+    public function getTotalValueAttribute(): int
     {
-        return $this->purchase_price * $this->quantity;
+        return $this->quantity * $this->purchase_price;
     }
 
     /**
-     * Get formatted total amount
+     * Get formatted total value
      */
-    public function getFormattedTotalAmountAttribute(): string
+    public function getFormattedTotalValueAttribute(): string
     {
-        return 'Rp ' . number_format($this->total_amount, 0, ',', '.');
+        return 'Rp ' . number_format($this->total_value, 0, ',', '.');
     }
 }
