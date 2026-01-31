@@ -94,9 +94,15 @@
                             <td class="px-6 py-4">
                                 <div class="flex items-center">
                                     <div class="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center mr-3">
-                                        <svg class="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
-                                        </svg>
+                                        @if($product->image)
+                                            <img src="{{ asset('storage/' . $product->image) }}" 
+                                                 alt="{{ $product->name }}" 
+                                                 class="w-12 h-12 object-cover rounded-lg">
+                                        @else
+                                            <svg class="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
+                                            </svg>
+                                        @endif
                                     </div>
                                     <div>
                                         <div class="text-sm font-medium text-gray-900">{{ $product->name }}</div>
@@ -108,7 +114,14 @@
                                 </div>
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap">
-                                <span class="text-sm text-gray-900">{{ $product->category?->name ?? '-' }}</span>
+                                @if($product->category)
+                                    <a href="{{ route('boss.categories.show', $product->category) }}" 
+                                       class="text-sm text-blue-600 hover:text-blue-800 hover:underline">
+                                        {{ $product->category->name }}
+                                    </a>
+                                @else
+                                    <span class="text-sm text-gray-400">-</span>
+                                @endif
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap text-right">
                                 <span class="text-sm text-gray-900">Rp {{ number_format($product->purchase_price, 0, ',', '.') }}</span>
@@ -118,8 +131,8 @@
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap text-center">
                                 <span class="inline-flex px-3 py-1 text-xs font-semibold rounded-full 
-                                    {{ $product->stock == 0 ? 'bg-red-100 text-red-800' : ($product->isLowStock() ? 'bg-yellow-100 text-yellow-800' : 'bg-green-100 text-green-800') }}">
-                                    {{ $product->stock }} {{ $product->unit }}
+                                    {{ $product->stock == 0 ? 'bg-red-100 text-red-800' : ($product->stock <= 10 ? 'bg-yellow-100 text-yellow-800' : 'bg-green-100 text-green-800') }}">
+                                    {{ $product->stock }} {{ $product->unit ?? 'pcs' }}
                                 </span>
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap text-center">
@@ -130,6 +143,18 @@
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap text-center">
                                 <div class="flex items-center justify-center gap-2">
+                                    {{-- Tombol Lihat Detail (BARU) --}}
+                                    <a href="{{ route('boss.products.show', $product) }}" 
+                                       class="inline-flex items-center px-3 py-1 bg-gray-600 text-white text-xs font-medium rounded hover:bg-gray-700 transition-colors"
+                                       title="Lihat detail produk">
+                                        <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+                                        </svg>
+                                        Lihat
+                                    </a>
+                                    
+                                    {{-- Tombol Edit --}}
                                     <a href="{{ route('boss.products.edit', $product) }}" 
                                        class="inline-flex items-center px-3 py-1 bg-blue-600 text-white text-xs font-medium rounded hover:bg-blue-700 transition-colors">
                                         <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -137,6 +162,8 @@
                                         </svg>
                                         Edit
                                     </a>
+                                    
+                                    {{-- Tombol Hapus --}}
                                     <form action="{{ route('boss.products.destroy', $product) }}" method="POST" class="inline" onsubmit="return confirm('Yakin ingin menghapus produk ini?')">
                                         @csrf
                                         @method('DELETE')

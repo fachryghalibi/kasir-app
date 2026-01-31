@@ -54,9 +54,12 @@
                                 <span class="text-sm text-gray-600 font-mono">{{ $category->slug }}</span>
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap text-center">
-                                <span class="inline-flex px-3 py-1 text-xs font-semibold rounded-full bg-gray-100 text-gray-800">
+                                {{-- Badge jumlah produk yang bisa diklik --}}
+                                <a href="{{ route('boss.categories.show', $category) }}" 
+                                   class="inline-flex px-3 py-1 text-xs font-semibold rounded-full bg-gray-100 text-gray-800 hover:bg-blue-100 hover:text-blue-800 transition-colors cursor-pointer"
+                                   title="Lihat produk dalam kategori ini">
                                     {{ $category->products_count }} produk
-                                </span>
+                                </a>
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap text-center">
                                 <span class="inline-flex px-3 py-1 text-xs font-semibold rounded-full 
@@ -66,6 +69,18 @@
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap text-center">
                                 <div class="flex items-center justify-center gap-2">
+                                    {{-- Tombol Lihat (BARU) --}}
+                                    <a href="{{ route('boss.categories.show', $category) }}" 
+                                       class="inline-flex items-center px-3 py-1 bg-gray-600 text-white text-xs font-medium rounded hover:bg-gray-700 transition-colors"
+                                       title="Lihat detail kategori dan produk">
+                                        <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+                                        </svg>
+                                        Lihat
+                                    </a>
+                                    
+                                    {{-- Tombol Edit --}}
                                     <a href="{{ route('boss.categories.edit', $category) }}" 
                                        class="inline-flex items-center px-3 py-1 bg-blue-600 text-white text-xs font-medium rounded hover:bg-blue-700 transition-colors">
                                         <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -73,6 +88,8 @@
                                         </svg>
                                         Edit
                                     </a>
+                                    
+                                    {{-- Tombol Hapus --}}
                                     <form action="{{ route('boss.categories.destroy', $category) }}" method="POST" class="inline" onsubmit="return confirm('Yakin ingin menghapus kategori ini?')">
                                         @csrf
                                         @method('DELETE')

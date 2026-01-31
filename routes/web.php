@@ -5,6 +5,8 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\Boss\CashFlowController;
 use App\Http\Controllers\Boss\CashFlowCategoryController;
 use App\Http\Controllers\Boss\VendorController;
+use App\Http\Controllers\Boss\CategoryController;
+use App\Http\Controllers\Boss\ProductController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -62,24 +64,72 @@ Route::middleware('auth')->group(function () {
     */
     Route::middleware('boss')->prefix('boss')->name('boss.')->group(function () {
         
-        // Product Management
-        Route::get('products/search', [\App\Http\Controllers\Boss\ProductController::class, 'search'])
-            ->name('products.search');
-        Route::resource('products', \App\Http\Controllers\Boss\ProductController::class);
+        /*
+        |--------------------------------------------------------------------------
+        | PRODUCT MANAGEMENT
+        |--------------------------------------------------------------------------
+        | Custom routes HARUS didefinisikan SEBELUM resource routes
+        */
         
-        // Category Management
-        Route::resource('categories', \App\Http\Controllers\Boss\CategoryController::class);
+        // Product Search (custom route)
+        Route::get('products/search', [ProductController::class, 'search'])
+            ->name('products.search');
+        
+        // Product Resource Routes (CRUD lengkap)
+        Route::resource('products', ProductController::class);
+        /*
+         * Route resource otomatis membuat 7 routes:
+         * 
+         * GET    /boss/products              -> index()   -> boss.products.index   (Daftar semua produk)
+         * GET    /boss/products/create       -> create()  -> boss.products.create  (Form tambah produk)
+         * POST   /boss/products              -> store()   -> boss.products.store   (Simpan produk baru)
+         * GET    /boss/products/{product}    -> show()    -> boss.products.show    (Detail produk)
+         * GET    /boss/products/{product}/edit -> edit()  -> boss.products.edit    (Form edit produk)
+         * PUT    /boss/products/{product}    -> update()  -> boss.products.update  (Update produk)
+         * PATCH  /boss/products/{product}    -> update()  -> boss.products.update  (Update produk)
+         * DELETE /boss/products/{product}    -> destroy() -> boss.products.destroy (Hapus produk)
+         */
+        
+        /*
+        |--------------------------------------------------------------------------
+        | CATEGORY MANAGEMENT
+        |--------------------------------------------------------------------------
+        */
+        Route::resource('categories', CategoryController::class);
+        /*
+         * Route resource otomatis membuat 7 routes:
+         * 
+         * GET    /boss/categories              -> index()   -> boss.categories.index
+         * GET    /boss/categories/create       -> create()  -> boss.categories.create
+         * POST   /boss/categories              -> store()   -> boss.categories.store
+         * GET    /boss/categories/{category}   -> show()    -> boss.categories.show
+         * GET    /boss/categories/{category}/edit -> edit() -> boss.categories.edit
+         * PUT    /boss/categories/{category}   -> update()  -> boss.categories.update
+         * PATCH  /boss/categories/{category}   -> update()  -> boss.categories.update
+         * DELETE /boss/categories/{category}   -> destroy() -> boss.categories.destroy
+         */
 
-        // Employee Management
+        /*
+        |--------------------------------------------------------------------------
+        | EMPLOYEE MANAGEMENT
+        |--------------------------------------------------------------------------
+        */
         Route::resource('employees', \App\Http\Controllers\Boss\EmployeeController::class);
         
-        // ✨ NEW: Transaction Items Detail (untuk modal di halaman employee detail)
+        // Transaction Items Detail (untuk modal di halaman employee detail)
         Route::get('transactions/{transaction}/items', [\App\Http\Controllers\Boss\EmployeeController::class, 'getTransactionItems'])
             ->name('transactions.items');
 
-        // Vendor Management
-        Route::get('vendors/search', [\App\Http\Controllers\Boss\VendorController::class, 'search'])
+        /*
+        |--------------------------------------------------------------------------
+        | VENDOR MANAGEMENT
+        |--------------------------------------------------------------------------
+        */
+        // Vendor Search (custom route)
+        Route::get('vendors/search', [VendorController::class, 'search'])
             ->name('vendors.search');
+        
+        // Vendor Resource Routes
         Route::resource('vendors', VendorController::class);
         
         // Vendor Comparison
@@ -88,7 +138,11 @@ Route::middleware('auth')->group(function () {
         Route::post('vendor-comparison', [\App\Http\Controllers\Boss\VendorComparisonController::class, 'compare'])
             ->name('vendor-comparison.compare');
         
-        // Product Tier Prices
+        /*
+        |--------------------------------------------------------------------------
+        | PRODUCT TIER PRICES
+        |--------------------------------------------------------------------------
+        */
         Route::get('products/{product}/tier-prices', [\App\Http\Controllers\Boss\ProductTierPriceController::class, 'index'])
             ->name('products.tier-prices.index');
         Route::post('products/{product}/tier-prices', [\App\Http\Controllers\Boss\ProductTierPriceController::class, 'store'])
@@ -96,7 +150,11 @@ Route::middleware('auth')->group(function () {
         Route::delete('tier-prices/{tierPrice}', [\App\Http\Controllers\Boss\ProductTierPriceController::class, 'destroy'])
             ->name('tier-prices.destroy');
         
-        // Product Vendor Prices
+        /*
+        |--------------------------------------------------------------------------
+        | PRODUCT VENDOR PRICES
+        |--------------------------------------------------------------------------
+        */
         Route::get('products/{product}/vendor-prices', [\App\Http\Controllers\Boss\ProductVendorPriceController::class, 'index'])
             ->name('products.vendor-prices.index');
         Route::post('products/{product}/vendor-prices', [\App\Http\Controllers\Boss\ProductVendorPriceController::class, 'store'])
