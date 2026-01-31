@@ -151,135 +151,151 @@ class ProductController extends Controller
     /**
      * Store a newly created product
      */
-    public function store(Request $request)
-    {
-        // Cek mode input: vendor mode jika ada data vendors yang valid
-        $isVendorMode = $request->has('vendors') && is_array($request->vendors) && count($request->vendors) > 0;
+    /**
+ * Store a newly created product
+ */
+public function store(Request $request)
+{
+    // Cek mode input: vendor mode jika ada data vendors yang valid
+    $isVendorMode = $request->has('vendors') && is_array($request->vendors) && count($request->vendors) > 0;
+    
+    // Base validation rules
+    $rules = [
+        'product_id' => 'nullable|exists:products,id',
+        'name' => 'required|string|max:200',
+        'category_id' => 'nullable|exists:categories,id',
+        'sku' => 'nullable|string|max:50',
+        'barcode' => 'nullable|string|max:50',
+        'description' => 'nullable|string',
+        'purchase_price' => 'required|numeric|min:0',
+        'selling_price' => 'required|numeric|min:0',
+        'min_stock' => 'required|integer|min:0',
+        'unit' => 'required|string|max:20',
+        'is_active' => 'boolean',
+        'is_featured' => 'boolean',
+        'stock' => 'required|integer|min:0',
+    ];
+    
+    $messages = [
+        'name.required' => 'Nama produk wajib diisi',
+        'purchase_price.required' => 'Harga beli wajib diisi',
+        'selling_price.required' => 'Harga jual wajib diisi',
+        'stock.required' => 'Stock wajib diisi',
+    ];
+    
+    // Jika vendor mode, tambahkan validasi vendor
+    if ($isVendorMode) {
+        $rules['vendors'] = 'required|array|min:1';
+        $rules['vendors.*.vendor_id'] = 'required|exists:vendors,id';
+        $rules['vendors.*.quantity'] = 'required|integer|min:1';
+        $rules['vendors.*.vendor_price'] = 'required|numeric|min:0';
+        $rules['vendors.*.effective_from'] = 'required|date';
+        $rules['vendors.*.notes'] = 'nullable|string|max:500';
         
-        // Base validation rules
-        $rules = [
-            'product_id' => 'nullable|exists:products,id',
-            'name' => 'required|string|max:200',
-            'category_id' => 'nullable|exists:categories,id',
-            'sku' => 'nullable|string|max:50',
-            'barcode' => 'nullable|string|max:50',
-            'description' => 'nullable|string',
-            'purchase_price' => 'required|numeric|min:0',
-            'selling_price' => 'required|numeric|min:0',
-            'min_stock' => 'required|integer|min:0',
-            'unit' => 'required|string|max:20',
-            'is_active' => 'boolean',
-            'is_featured' => 'boolean',
-            'stock' => 'required|integer|min:0',
-        ];
-        
-        $messages = [
-            'name.required' => 'Nama produk wajib diisi',
-            'purchase_price.required' => 'Harga beli wajib diisi',
-            'selling_price.required' => 'Harga jual wajib diisi',
-            'stock.required' => 'Stock wajib diisi',
-        ];
-        
-        // Jika vendor mode, tambahkan validasi vendor
-        if ($isVendorMode) {
-            $rules['vendors'] = 'required|array|min:1';
-            $rules['vendors.*.vendor_id'] = 'required|exists:vendors,id';
-            $rules['vendors.*.quantity'] = 'required|integer|min:1';
-            $rules['vendors.*.vendor_price'] = 'required|numeric|min:0';
-            $rules['vendors.*.effective_from'] = 'required|date';
-            $rules['vendors.*.notes'] = 'nullable|string|max:500';
-            
-            $messages['vendors.required'] = 'Minimal 1 vendor harus ditambahkan';
-            $messages['vendors.*.vendor_id.required'] = 'Vendor wajib dipilih';
-            $messages['vendors.*.quantity.required'] = 'Jumlah wajib diisi';
-            $messages['vendors.*.vendor_price.required'] = 'Harga vendor wajib diisi';
-            $messages['vendors.*.effective_from.required'] = 'Tanggal mulai berlaku wajib diisi';
-        }
-        
-        $validated = $request->validate($rules, $messages);
-
-        // PENTING: Auto-detect existing product by name jika tidak di-set manual
-        $existingProduct = null;
-        
-        if ($request->filled('product_id')) {
-            // User explicitly selected existing product
-            $existingProduct = Product::findOrFail($request->product_id);
-        } else {
-            // User TIDAK klik autocomplete, cek apakah produk dengan nama yang sama sudah ada
-            $existingProduct = Product::where('name', $validated['name'])->first();
-        }
-
-        // Cek: Update existing product atau create new
-        if ($existingProduct) {
-            // UPDATE EXISTING PRODUCT (Tambah Stock)
-            $product = $existingProduct;
-            
-            // Update data product (kategori, harga, dll bisa diubah)
-            $product->update([
-                'category_id' => $validated['category_id'],
-                'purchase_price' => $validated['purchase_price'],
-                'selling_price' => $validated['selling_price'],
-                'min_stock' => $validated['min_stock'],
-                'description' => $validated['description'] ?? $product->description,
-                'is_active' => $request->boolean('is_active', true),
-                'is_featured' => $request->boolean('is_featured', false),
-                'updated_by' => auth()->id(),
-            ]);
-
-            $message = 'Stock produk "' . $product->name . '" berhasil ditambahkan!';
-            
-        } else {
-            // CREATE NEW PRODUCT
-            $validated['created_by'] = auth()->id();
-            $validated['is_active'] = $request->boolean('is_active', true);
-            $validated['is_featured'] = $request->boolean('is_featured', false);
-            
-            // Generate unique slug
-            $validated['slug'] = $this->generateUniqueSlug($validated['name']);
-            
-            // Stock dari validated (sudah diisi dari manual atau vendor mode)
-            $product = Product::create($validated);
-            
-            $message = 'Produk baru "' . $product->name . '" berhasil ditambahkan!';
-        }
-
-        // Process vendors - HANYA jika vendor mode aktif
-        if ($isVendorMode) {
-            $totalStock = 0;
-            
-            foreach ($request->vendors as $vendorData) {
-                // SELALU buat record baru, tidak update yang lama
-                $product->vendorPrices()->create([
-                    'vendor_id' => $vendorData['vendor_id'],
-                    'purchase_price' => $vendorData['vendor_price'],
-                    'quantity' => $vendorData['quantity'],
-                    'effective_from' => $vendorData['effective_from'],
-                    'effective_to' => null, // Semua record tetap NULL (active)
-                    'notes' => $vendorData['notes'] ?? null,
-                    'created_by' => auth()->id(),
-                ]);
-                
-                $totalStock += $vendorData['quantity'];
-            }
-
-            // Update total stock product (jika ada tambahan dari vendor)
-            if ($totalStock > 0) {
-                $product->increment('stock', $totalStock);
-                $message .= ' Total stock bertambah: +' . $totalStock . ' ' . $product->unit;
-            }
-        } else {
-            // Mode manual: langsung update stock dari input
-            // Stock sudah di-set di $validated['stock'], tapi untuk existing product perlu di-increment
-            if ($existingProduct) {
-                $addedStock = $validated['stock'];
-                $product->increment('stock', $addedStock);
-                $message .= ' Total stock bertambah: +' . $addedStock . ' ' . $product->unit;
-            }
-        }
-
-        return redirect()->route('boss.products.index')
-            ->with('success', $message);
+        $messages['vendors.required'] = 'Minimal 1 vendor harus ditambahkan';
+        $messages['vendors.*.vendor_id.required'] = 'Vendor wajib dipilih';
+        $messages['vendors.*.quantity.required'] = 'Jumlah wajib diisi';
+        $messages['vendors.*.vendor_price.required'] = 'Harga vendor wajib diisi';
+        $messages['vendors.*.effective_from.required'] = 'Tanggal mulai berlaku wajib diisi';
     }
+    
+    $validated = $request->validate($rules, $messages);
+
+    // ===== AUTO-DETECT EXISTING PRODUCT =====
+    $existingProduct = null;
+    
+    if ($request->filled('product_id')) {
+        // User explicitly selected existing product via autocomplete
+        $existingProduct = Product::findOrFail($request->product_id);
+    } else {
+        // Check if product with same name already exists
+        $existingProduct = Product::where('name', $validated['name'])->first();
+    }
+
+    // ✅ SIMPAN stock_before untuk stock log
+    $stockBefore = $existingProduct ? $existingProduct->stock : 0;
+    
+    // ===== VARIABLE UNTUK TRACKING =====
+    $addedStock = $validated['stock']; // Stock yang akan ditambahkan
+    $isNewProduct = !$existingProduct;
+
+    // ===== CREATE OR UPDATE PRODUCT =====
+    if ($existingProduct) {
+        // ===== UPDATE EXISTING PRODUCT =====
+        $product = $existingProduct;
+        
+        // Update product details
+        $product->update([
+            'category_id' => $validated['category_id'],
+            'purchase_price' => $validated['purchase_price'],
+            'selling_price' => $validated['selling_price'],
+            'min_stock' => $validated['min_stock'],
+            'description' => $validated['description'] ?? $product->description,
+            'is_active' => $request->boolean('is_active', true),
+            'is_featured' => $request->boolean('is_featured', false),
+            'updated_by' => auth()->id(),
+        ]);
+
+        // ✅ INCREMENT stock (stock sudah final dari JavaScript)
+        $product->increment('stock', $addedStock);
+        
+        $message = 'Stock produk "' . $product->name . '" berhasil ditambahkan (+' . $addedStock . ' ' . $product->unit . ')';
+        
+    } else {
+        // ===== CREATE NEW PRODUCT =====
+        $validated['created_by'] = auth()->id();
+        $validated['is_active'] = $request->boolean('is_active', true);
+        $validated['is_featured'] = $request->boolean('is_featured', false);
+        $validated['slug'] = $this->generateUniqueSlug($validated['name']);
+        
+        // ✅ Stock langsung dari validated (sudah dihitung JavaScript)
+        // TIDAK ADA INCREMENT lagi!
+        $product = Product::create($validated);
+        
+        $message = 'Produk baru "' . $product->name . '" berhasil ditambahkan!';
+    }
+
+    // ===== SIMPAN VENDOR PRICES (HANYA HARGA, TIDAK HITUNG STOCK!) =====
+    if ($isVendorMode && $request->has('vendors')) {
+        foreach ($request->vendors as $vendorData) {
+            // ✅ Simpan HANYA harga vendor
+            // JANGAN simpan quantity di sini, karena quantity sudah masuk ke product.stock
+            $product->vendorPrices()->create([
+                'vendor_id' => $vendorData['vendor_id'],
+                'purchase_price' => $vendorData['vendor_price'],
+                'effective_from' => $vendorData['effective_from'],
+                'effective_to' => null,
+                'notes' => $vendorData['notes'] ?? null,
+                'created_by' => auth()->id(),
+            ]);
+        }
+        
+        $vendorCount = count($request->vendors);
+        $message .= " (Tracking harga dari {$vendorCount} vendor)";
+    }
+
+    // ===== CREATE STOCK LOG =====
+    if (class_exists(\App\Models\StockLog::class)) {
+        // Refresh product untuk mendapat stock terbaru dari database
+        $product->refresh();
+        $stockAfter = $product->stock;
+        
+        \App\Models\StockLog::create([
+            'product_id' => $product->id,
+            'type' => 'in',
+            'quantity' => $addedStock,
+            'stock_before' => $stockBefore,
+            'stock_after' => $stockAfter,
+            'notes' => $isVendorMode 
+                ? 'Stock awal dari ' . count($request->vendors ?? []) . ' vendor' 
+                : 'Input stock manual',
+            'user_id' => auth()->id(),
+        ]);
+    }
+
+    return redirect()->route('boss.products.index')
+        ->with('success', $message);
+}
 
     /**
      * Display the specified product
