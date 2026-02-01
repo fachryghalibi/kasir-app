@@ -40,7 +40,7 @@
                 <label for="amount" class="block text-sm font-medium text-gray-700 mb-2">
                     Jumlah (Rp) <span class="text-red-500">*</span>
                 </label>
-                <input type="number" name="amount" id="amount" value="{{ old('amount') }}" required min="0" step="1000"
+                <input type="number" name="amount" id="amount" value="{{ old('amount') }}" required min="0" 
                     class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent @error('amount') border-red-500 @enderror"
                     placeholder="Contoh: 50000">
                 @error('amount')

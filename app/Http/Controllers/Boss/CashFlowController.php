@@ -126,53 +126,70 @@ class CashFlowController extends Controller
      * Calculate cash flow summary
      */
     private function calculateSummary(Request $request)
-    {
-        $query = CashFlow::approved();
+{
+    $query = CashFlow::approved();
 
-        // Apply same filters as index
-        if ($request->filled('start_date') && $request->filled('end_date')) {
-            $query->dateRange($request->start_date, $request->end_date);
-        } elseif ($request->filled('period')) {
-            switch ($request->period) {
-                case 'today':
-                    $query->today();
-                    break;
-                case 'this_month':
-                    $query->thisMonth();
-                    break;
-                case 'this_year':
-                    $query->thisYear();
-                    break;
-            }
-        } else {
-            $query->thisMonth();
+    // Apply same filters as index
+    if ($request->filled('start_date') && $request->filled('end_date')) {
+        $query->dateRange($request->start_date, $request->end_date);
+    } elseif ($request->filled('period')) {
+        switch ($request->period) {
+            case 'today':
+                $query->today();
+                break;
+            case 'this_month':
+                $query->thisMonth();
+                break;
+            case 'this_year':
+                $query->thisYear();
+                break;
         }
-
-        $totalIncome = (clone $query)->income()->sum('amount');
-        $totalExpense = (clone $query)->expense()->sum('amount');
-        $netCashFlow = $totalIncome - $totalExpense;
-
-        // Breakdown by source
-        $incomeBySource = (clone $query)->income()
-            ->select('source', DB::raw('SUM(amount) as total'))
-            ->groupBy('source')
-            ->get()
-            ->pluck('total', 'source');
-
-        $expenseBySource = (clone $query)->expense()
-            ->select('source', DB::raw('SUM(amount) as total'))
-            ->groupBy('source')
-            ->get()
-            ->pluck('total', 'source');
-
-        return [
-            'total_income' => $totalIncome,
-            'total_expense' => $totalExpense,
-            'net_cash_flow' => $netCashFlow,
-            'income_by_source' => $incomeBySource,
-            'expense_by_source' => $expenseBySource,
-        ];
+    } else {
+        $query->thisMonth();
     }
+
+    // ✅ HITUNG INCOME (tidak termasuk adjustment)
+    $totalIncome = (clone $query)
+        ->income()
+        ->sum('amount');
+
+    // ✅ HITUNG EXPENSE (tidak termasuk adjustment)
+    $totalExpense = (clone $query)
+        ->expense()
+        ->where('source', '!=', 'adjustment') // ❗ PENTING: exclude adjustment
+        ->sum('amount');
+
+    // ✅ HITUNG ADJUSTMENT (bisa positif atau negatif)
+    $totalAdjustment = (clone $query)
+        ->where('source', 'adjustment')
+        ->sum('amount');
+
+    // ✅ HITUNG NET CASH FLOW
+    // Income - Expense - Adjustment (karena adjustment adalah koreksi inventory)
+    $netCashFlow = $totalIncome - $totalExpense - abs($totalAdjustment);
+
+    // Breakdown by source
+    $incomeBySource = (clone $query)->income()
+        ->select('source', DB::raw('SUM(amount) as total'))
+        ->groupBy('source')
+        ->get()
+        ->pluck('total', 'source');
+
+    $expenseBySource = (clone $query)->expense()
+        ->select('source', DB::raw('SUM(amount) as total'))
+        ->groupBy('source')
+        ->get()
+        ->pluck('total', 'source');
+
+    return [
+        'total_income' => $totalIncome,
+        'total_expense' => $totalExpense,
+        'total_adjustment' => $totalAdjustment, // ✅ TAMBAHKAN INI
+        'net_cash_flow' => $netCashFlow,
+        'income_by_source' => $incomeBySource,
+        'expense_by_source' => $expenseBySource,
+    ];
+}
 
     /**
      * Show create form for manual cash flow

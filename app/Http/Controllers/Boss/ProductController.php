@@ -51,6 +51,29 @@ class ProductController extends Controller
                 // Stock normal (stock > min_stock)
                 $query->where('stock', '>', \DB::raw('min_stock'));
         }
+
+        $summary = [
+        'total_income' => CashFlow::where('type', 'income')
+            ->where('approval_status', 'approved')
+            ->sum('amount'),
+            
+        'total_expense' => CashFlow::where('type', 'expense')
+            ->where('approval_status', 'approved')
+            ->where('source', '!=', 'adjustment') // ❌ JANGAN hitung adjustment sebagai expense biasa
+            ->sum('amount'),
+            
+        // ✅ TAMBAHKAN INI: Hitung total adjustment
+        'total_adjustment' => CashFlow::where('source', 'adjustment')
+            ->where('approval_status', 'approved')
+            ->sum('amount'), // Akan ada nilai positif dan negatif
+            
+        'net_cash_flow' => 0, // Akan dihitung di bawah
+    ];
+    
+    // Hitung net cash flow (Income - Expense - Adjustment)
+    $summary['net_cash_flow'] = $summary['total_income'] 
+        - $summary['total_expense'] 
+        - abs($summary['total_adjustment']);
 }
 
         $products = $query->latest()->paginate(20);
@@ -447,9 +470,7 @@ class ProductController extends Controller
 
     /**
      * Handle stock adjustment cash flow
-     * ✅ LOGIC YANG BENAR:
-     * - Stock bertambah = Pengeluaran bertambah (expense positif)
-     * - Stock berkurang = Pengeluaran berkurang (expense negatif)
+     * ✅ MENGGUNAKAN WARNA ORANYE/AMBER untuk membedakan dari expense/income biasa
      */
     private function handleStockAdjustmentCashFlow(
         Product $product, 
@@ -459,28 +480,28 @@ class ProductController extends Controller
         int $purchasePrice
     )
     {
-        // ✅ SEMUA PENYESUAIAN STOCK ADALAH EXPENSE
+        // ✅ PENYESUAIAN STOCK = ADJUSTMENT (Warna Oranye/Amber)
         $category = CashFlowCategory::firstOrCreate(
             [
                 'name' => 'Penyesuaian Stock',
                 'type' => 'expense',
             ],
             [
-                'description' => 'Penyesuaian/koreksi stock produk (penambahan/pengurangan pengeluaran)',
+                'description' => 'Penyesuaian/koreksi stock produk',
                 'is_active' => true,
                 'sort_order' => 99,
             ]
         );
 
         // Calculate adjustment amount (bisa positif atau negatif)
-        // Positif = pengeluaran bertambah (stock naik)
-        // Negatif = pengeluaran berkurang (stock turun)
+        // Positif = stock bertambah
+        // Negatif = stock berkurang
         $adjustmentAmount = $stockDifference * $purchasePrice;
 
         // Determine description
         if ($stockDifference > 0) {
             $description = sprintf(
-                'Penyesuaian stock: %s (tambah %d %s, dari %d → %d) @ Rp %s [Pengeluaran +Rp %s]',
+                'Penyesuaian Stock: %s (+%d %s, dari %d → %d) @ Rp %s [Total: Rp %s]',
                 $product->name,
                 abs($stockDifference),
                 $product->unit,
@@ -491,7 +512,7 @@ class ProductController extends Controller
             );
         } else {
             $description = sprintf(
-                'Penyesuaian stock: %s (kurang %d %s, dari %d → %d) @ Rp %s [Pengeluaran -Rp %s]',
+                'Penyesuaian Stock: %s (-%d %s, dari %d → %d) @ Rp %s [Total: Rp %s]',
                 $product->name,
                 abs($stockDifference),
                 $product->unit,
@@ -538,9 +559,7 @@ class ProductController extends Controller
 
     /**
      * Handle price adjustment cash flow
-     * ✅ LOGIC YANG BENAR:
-     * - Harga naik = Pengeluaran bertambah (expense positif)
-     * - Harga turun = Pengeluaran berkurang (expense negatif)
+     * ✅ MENGGUNAKAN WARNA ORANYE/AMBER untuk membedakan dari expense/income biasa
      */
     private function createPriceAdjustmentCashFlow(
         Product $product,
@@ -550,14 +569,14 @@ class ProductController extends Controller
         int $currentStock
     )
     {
-        // ✅ SEMUA PENYESUAIAN HARGA ADALAH EXPENSE
+        // ✅ PENYESUAIAN HARGA = ADJUSTMENT (Warna Oranye/Amber)
         $category = CashFlowCategory::firstOrCreate(
             [
                 'name' => 'Penyesuaian Harga Beli',
                 'type' => 'expense',
             ],
             [
-                'description' => 'Penyesuaian harga beli produk (penambahan/pengurangan pengeluaran)',
+                'description' => 'Penyesuaian harga beli produk',
                 'is_active' => true,
                 'sort_order' => 98,
             ]
@@ -566,14 +585,13 @@ class ProductController extends Controller
         $isIncrease = $valueDifference > 0;
         
         $description = sprintf(
-            'Penyesuaian harga: %s (stock: %d %s, harga %s dari Rp %s → Rp %s) [Pengeluaran %sRp %s]',
+            'Penyesuaian Harga: %s (stock: %d %s, harga %s dari Rp %s → Rp %s) [Total: Rp %s]',
             $product->name,
             $currentStock,
             $product->unit,
             $isIncrease ? 'naik' : 'turun',
             number_format($oldPrice, 0, ',', '.'),
             number_format($newPrice, 0, ',', '.'),
-            $isIncrease ? '+' : '-',
             number_format(abs($valueDifference), 0, ',', '.')
         );
 
